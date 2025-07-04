@@ -1,0 +1,332 @@
+""<!DOCTYPE html>
+<html lang="en">
+>
+<head>
+<meta charset="UTF-8">
+<title>Placement Readiness Dashboard</title>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet">
+<style>
+    body {
+        margin: 0;
+        font-family: 'Poppins', sans-serif;
+        background: #f4f6f8;
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+    }
+    .sidebar {
+        width: 250px;
+        background: #263238;
+        color: white;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+    }
+    .sidebar h2 {
+        margin-top: 0;
+        font-size: 1.5rem;
+    }
+    .tab-btn {
+        background: #00acc1;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        margin: 8px 0;
+        border-radius: 5px;
+        cursor: pointer;
+        text-align: left;
+        transition: background 0.3s ease;
+    }
+    .tab-btn:hover, .tab-btn.active {
+        background: #004d5c;
+    }
+    .main {
+        flex: 1;
+        padding: 20px;
+        overflow-y: auto;
+        background: #f4f6f8;
+    }
+    .dashboard-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+    .card {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        flex: 1 1 300px;
+    }
+    .progress-container {
+        background: #e0e0e0;
+        border-radius: 5px;
+        overflow: hidden;
+        margin-top: 8px;
+    }
+    .progress-bar {
+        height: 15px;
+        border-radius: 5px;
+        text-align: center;
+        color: white;
+        line-height: 15px;
+        background: linear-gradient(90deg, #00acc1, #007c91);
+    }
+    .badge {
+        display: inline-block;
+        background: #4caf50;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 12px;
+        margin: 4px;
+        font-size: 0.8rem;
+    }
+    .badge.weak {
+        background: #e53935;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    th, td {
+        padding: 10px;
+        border: 1px solid #ddd;
+        text-align: left;
+    }
+</style>
+</head>
+<body>
+<div class="sidebar">
+    <h2>Dashboard</h2>
+    <button class="tab-btn active" onclick="showTab('leaderboard')">🏆 Leaderboard</button>
+    <button class="tab-btn" onclick="showTab('profile')">👤 My Profile</button>
+</div>
+<div class="main">
+    <div id="leaderboardSection">
+        <h2>Placement Leaderboard</h2>
+        <table>
+            <thead>
+                <tr><th>Rank</th><th>Name</th><th>Readiness %</th></tr>
+            </thead>
+            <tbody id="leaderboardBody"></tbody>
+        </table>
+    </div>
+    <div id="profileSection" style="display:none">
+        <h2>My Placement Readiness</h2>
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3 style="text-align:center">Overall Readiness</h3>
+                <div id="readinessGauge"></div>
+            </div>
+            <div class="card">
+                <h3 style="text-align:center">Skill Radar</h3>
+                <div id="skillRadar"></div>
+            </div>
+            <div class="card">
+                <h3>Strengths & Improvement Areas</h3>
+                <div id="badges"></div>
+            </div>
+            <div class="card">
+                <h3>Detailed Skill Progress</h3>
+                <div id="progressDetails"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+let students = [];
+let selectedStudent = null;
+
+document.addEventListener("DOMContentLoaded", () => {
+    fetch("students.json")
+        .then(res => res.json())
+        .then(data => {
+            students = data;
+            populateLeaderboard();
+            loadProfile(students[0].id); // Show first student by default
+        })
+        .catch(err => console.error("Error loading student data:", err));
+});
+
+function calculateReadiness(student) {
+    const weights = {
+        programming: 20,
+        technicalKnowledge: 20,
+        appliedSkills: 15,
+        problemSolving: 15,
+        english: 10,
+        softSkills: 10,
+        attendance: 10
+    };
+
+    const programming = (student.pythonConcept + student.pythonApplied) / 2;
+    const technical = (
+        student.dataStructuresAndAlgorithmsConcept +
+        student.dataStructuresAndAlgorithmsApplied +
+        student.computerOrganizationAndArchitectureConcept +
+        student.DBMSConcept +
+        student.DBMSApplied +
+        student.computerNetworksConcept +
+        student.computerNetworksApplied +
+        student.operatingSystemConcept +
+        student.operatingSystemApplied
+    ) / 9;
+
+    const applied = (
+        student.webDevelopmentApplied +
+        student.dataStructuresAndAlgorithmsApplied +
+        student.DBMSApplied +
+        student.computerNetworksApplied +
+        student.operatingSystemApplied
+    ) / 5;
+
+    const problemSolving = student.dataStructuresAndAlgorithmsConcept;
+    const english = student.englishSpeaking.toLowerCase().includes("fluent") ? 75 : 50;
+    const softSkills = student.softSkills.toLowerCase().includes("needs") ? 40 : 70;
+
+    const attendance = (
+        student.pythonAttConcept +
+        student.pythonAttApplied +
+        student.dataStructuresAndAlgorithmsAttConcept +
+        student.dataStructuresAndAlgorithmsAttApplied +
+        student.computerOrganizationAndArchitectureAttConcept +
+        student.DBMSAttConcept +
+        student.DBMSAttApplied +
+        student.computerNetworksAttConcept +
+        student.computerNetworksAttApplied +
+        student.operatingSystemAttConcept +
+        student.operatingSystemAttApplied +
+        student.webDevelopmentAttApplied
+    ) / 12;
+
+    const readiness = (
+        programming * weights.programming +
+        technical * weights.technicalKnowledge +
+        applied * weights.appliedSkills +
+        problemSolving * weights.problemSolving +
+        english * weights.english +
+        softSkills * weights.softSkills +
+        attendance * weights.attendance
+    ) / 100;
+
+    return Math.round(readiness);
+}
+
+function populateLeaderboard() {
+    const leaderboardBody = document.getElementById("leaderboardBody");
+    leaderboardBody.innerHTML = "";
+
+    students.forEach(s => s.readiness = calculateReadiness(s));
+    students.sort((a, b) => b.readiness - a.readiness);
+
+    students.forEach((s, i) => {
+        leaderboardBody.innerHTML += `
+            <tr onclick="loadProfile('${s.id}')" style="cursor:pointer">
+                <td>${i + 1}</td>
+                <td>${s.name}</td>
+                <td>${s.readiness}%</td>
+            </tr>
+        `;
+    });
+}
+
+function loadProfile(studentId) {
+    selectedStudent = students.find(s => s.id === studentId);
+    if (!selectedStudent) return;
+
+    showTab('profile');
+
+    Plotly.newPlot("readinessGauge", [{
+        type: "indicator",
+        mode: "gauge+number",
+        value: selectedStudent.readiness,
+        title: { text: "Readiness %" },
+        gauge: {
+            axis: { range: [0, 100] },
+            bar: { color: selectedStudent.readiness >= 75 ? "#4caf50" : selectedStudent.readiness >= 50 ? "#ffb300" : "#e53935" },
+            steps: [
+                { range: [0, 50], color: "#ffcdd2" },
+                { range: [50, 75], color: "#fff59d" },
+                { range: [75, 100], color: "#c8e6c9" }
+            ]
+        }
+    }], { width: 250, height: 250 });
+
+    const skillValues = [
+        (selectedStudent.pythonConcept + selectedStudent.pythonApplied) / 2,
+        (
+            selectedStudent.dataStructuresAndAlgorithmsConcept +
+            selectedStudent.dataStructuresAndAlgorithmsApplied +
+            selectedStudent.computerOrganizationAndArchitectureConcept +
+            selectedStudent.DBMSConcept +
+            selectedStudent.DBMSApplied +
+            selectedStudent.computerNetworksConcept +
+            selectedStudent.computerNetworksApplied +
+            selectedStudent.operatingSystemConcept +
+            selectedStudent.operatingSystemApplied
+        ) / 9,
+        (
+            selectedStudent.webDevelopmentApplied +
+            selectedStudent.dataStructuresAndAlgorithmsApplied +
+            selectedStudent.DBMSApplied +
+            selectedStudent.computerNetworksApplied +
+            selectedStudent.operatingSystemApplied
+        ) / 5,
+        selectedStudent.dataStructuresAndAlgorithmsConcept,
+        selectedStudent.englishSpeaking.toLowerCase().includes("fluent") ? 75 : 50,
+        selectedStudent.softSkills.toLowerCase().includes("needs") ? 40 : 70,
+        (
+            selectedStudent.pythonAttConcept +
+            selectedStudent.pythonAttApplied +
+            selectedStudent.dataStructuresAndAlgorithmsAttConcept +
+            selectedStudent.dataStructuresAndAlgorithmsAttApplied +
+            selectedStudent.computerOrganizationAndArchitectureAttConcept +
+            selectedStudent.DBMSAttConcept +
+            selectedStudent.DBMSAttApplied +
+            selectedStudent.computerNetworksAttConcept +
+            selectedStudent.computerNetworksAttApplied +
+            selectedStudent.operatingSystemAttConcept +
+            selectedStudent.operatingSystemAttApplied +
+            selectedStudent.webDevelopmentAttApplied
+        ) / 12
+    ];
+
+    Plotly.newPlot("skillRadar", [{
+        type: 'scatterpolar',
+        r: skillValues,
+        theta: ['Programming', 'Tech Knowledge', 'Applied Skills', 'Problem Solving', 'English', 'Soft Skills', 'Attendance'],
+        fill: 'toself',
+        line: { color: '#00acc1' }
+    }], { polar: { radialaxis: { visible: true, range: [0, 100] } }, showlegend: false });
+
+    const badgeDiv = document.getElementById("badges");
+    badgeDiv.innerHTML = "";
+    ['Programming', 'Tech Knowledge', 'Applied Skills', 'Problem Solving', 'English', 'Soft Skills', 'Attendance'].forEach((label, i) => {
+        if (skillValues[i] >= 75) badgeDiv.innerHTML += `<span class='badge'>${label}</span>`;
+        if (skillValues[i] < 50) badgeDiv.innerHTML += `<span class='badge weak'>${label}</span>`;
+    });
+
+    const progressDiv = document.getElementById("progressDetails");
+    progressDiv.innerHTML = "";
+    skillValues.forEach((val, i) => {
+        progressDiv.innerHTML += `
+            <p>${['Programming', 'Tech Knowledge', 'Applied Skills', 'Problem Solving', 'English', 'Soft Skills', 'Attendance'][i]} <span>${Math.round(val)}%</span></p>
+            <div class='progress-container'>
+                <div class='progress-bar' style='width:${val}%;'></div>
+            </div>
+        `;
+    });
+}
+
+function showTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`.tab-btn[onclick*='${tab}']`).classList.add('active');
+
+    document.getElementById('leaderboardSection').style.display = tab === 'leaderboard' ? 'block' : 'none';
+    document.getElementById('profileSection').style.display = tab === 'profile' ? 'block' : 'none';
+}
+</script>
+</body>
+</html>
