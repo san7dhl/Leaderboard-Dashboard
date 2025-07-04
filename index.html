@@ -1,6 +1,5 @@
-""<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
->
 <head>
 <meta charset="UTF-8">
 <title>Placement Readiness Dashboard</title>
@@ -114,7 +113,7 @@
         </table>
     </div>
     <div id="profileSection" style="display:none">
-        <h2>My Placement Readiness</h2>
+        <h2>Placement Readiness for <span id="studentName"></span></h2>
         <div class="dashboard-grid">
             <div class="card">
                 <h3 style="text-align:center">Overall Readiness</h3>
@@ -132,6 +131,14 @@
                 <h3>Detailed Skill Progress</h3>
                 <div id="progressDetails"></div>
             </div>
+            <div class="card">
+                <h3>My Profile Details</h3>
+                <div id="profileDetails"></div>
+            </div>
+            <div class="card">
+                <h3 style="text-align:center">Actionable Suggestions</h3>
+                <div id="personalSuggestions"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -145,70 +152,41 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(data => {
             students = data;
             populateLeaderboard();
-            loadProfile(students[0].id); // Show first student by default
+            loadProfile(students[0].registration_number);
         })
         .catch(err => console.error("Error loading student data:", err));
 });
 
 function calculateReadiness(student) {
     const weights = {
-        programming: 20,
-        technicalKnowledge: 20,
-        appliedSkills: 15,
+        communication: 15,
         problemSolving: 15,
-        english: 10,
-        softSkills: 10,
-        attendance: 10
+        technicalSkills: 15,
+        attendance: 15,
+        resume: 15,
+        portfolio: 15,
+        proactive: 10
     };
 
-    const programming = (student.pythonConcept + student.pythonApplied) / 2;
-    const technical = (
-        student.dataStructuresAndAlgorithmsConcept +
-        student.dataStructuresAndAlgorithmsApplied +
-        student.computerOrganizationAndArchitectureConcept +
-        student.DBMSConcept +
-        student.DBMSApplied +
-        student.computerNetworksConcept +
-        student.computerNetworksApplied +
-        student.operatingSystemConcept +
-        student.operatingSystemApplied
-    ) / 9;
+    const communication = ((student.spoken_english_rating + student.written_communication_rating) / 2) * 20;
+    const problemSolving = student.problem_solving_rating * 20;
+    const technicalSkills = student.familiar_tools ? 70 : 40;
+    const attendance = parseFloat(student.attendance_percentage);
+    const resumeReadiness = student.has_resume.toLowerCase() === "yes" ? 100 : 0;
+    const portfolioReadiness = student.has_online_portfolio.toLowerCase() === "yes" ? 100 : 0;
 
-    const applied = (
-        student.webDevelopmentApplied +
-        student.dataStructuresAndAlgorithmsApplied +
-        student.DBMSApplied +
-        student.computerNetworksApplied +
-        student.operatingSystemApplied
-    ) / 5;
-
-    const problemSolving = student.dataStructuresAndAlgorithmsConcept;
-    const english = student.englishSpeaking.toLowerCase().includes("fluent") ? 75 : 50;
-    const softSkills = student.softSkills.toLowerCase().includes("needs") ? 40 : 70;
-
-    const attendance = (
-        student.pythonAttConcept +
-        student.pythonAttApplied +
-        student.dataStructuresAndAlgorithmsAttConcept +
-        student.dataStructuresAndAlgorithmsAttApplied +
-        student.computerOrganizationAndArchitectureAttConcept +
-        student.DBMSAttConcept +
-        student.DBMSAttApplied +
-        student.computerNetworksAttConcept +
-        student.computerNetworksAttApplied +
-        student.operatingSystemAttConcept +
-        student.operatingSystemAttApplied +
-        student.webDevelopmentAttApplied
-    ) / 12;
+    let proactive = 0;
+    if (student.has_project.toLowerCase() === "yes") proactive += 50;
+    if (student.has_certification.toLowerCase() === "yes") proactive += 50;
 
     const readiness = (
-        programming * weights.programming +
-        technical * weights.technicalKnowledge +
-        applied * weights.appliedSkills +
+        communication * weights.communication +
         problemSolving * weights.problemSolving +
-        english * weights.english +
-        softSkills * weights.softSkills +
-        attendance * weights.attendance
+        technicalSkills * weights.technicalSkills +
+        attendance * weights.attendance +
+        resumeReadiness * weights.resume +
+        portfolioReadiness * weights.portfolio +
+        proactive * weights.proactive
     ) / 100;
 
     return Math.round(readiness);
@@ -223,7 +201,7 @@ function populateLeaderboard() {
 
     students.forEach((s, i) => {
         leaderboardBody.innerHTML += `
-            <tr onclick="loadProfile('${s.id}')" style="cursor:pointer">
+            <tr onclick="loadProfile('${s.registration_number}')" style="cursor:pointer">
                 <td>${i + 1}</td>
                 <td>${s.name}</td>
                 <td>${s.readiness}%</td>
@@ -233,10 +211,11 @@ function populateLeaderboard() {
 }
 
 function loadProfile(studentId) {
-    selectedStudent = students.find(s => s.id === studentId);
+    selectedStudent = students.find(s => s.registration_number == studentId);
     if (!selectedStudent) return;
 
     showTab('profile');
+    document.getElementById("studentName").innerText = selectedStudent.name;
 
     Plotly.newPlot("readinessGauge", [{
         type: "indicator",
@@ -255,55 +234,26 @@ function loadProfile(studentId) {
     }], { width: 250, height: 250 });
 
     const skillValues = [
-        (selectedStudent.pythonConcept + selectedStudent.pythonApplied) / 2,
-        (
-            selectedStudent.dataStructuresAndAlgorithmsConcept +
-            selectedStudent.dataStructuresAndAlgorithmsApplied +
-            selectedStudent.computerOrganizationAndArchitectureConcept +
-            selectedStudent.DBMSConcept +
-            selectedStudent.DBMSApplied +
-            selectedStudent.computerNetworksConcept +
-            selectedStudent.computerNetworksApplied +
-            selectedStudent.operatingSystemConcept +
-            selectedStudent.operatingSystemApplied
-        ) / 9,
-        (
-            selectedStudent.webDevelopmentApplied +
-            selectedStudent.dataStructuresAndAlgorithmsApplied +
-            selectedStudent.DBMSApplied +
-            selectedStudent.computerNetworksApplied +
-            selectedStudent.operatingSystemApplied
-        ) / 5,
-        selectedStudent.dataStructuresAndAlgorithmsConcept,
-        selectedStudent.englishSpeaking.toLowerCase().includes("fluent") ? 75 : 50,
-        selectedStudent.softSkills.toLowerCase().includes("needs") ? 40 : 70,
-        (
-            selectedStudent.pythonAttConcept +
-            selectedStudent.pythonAttApplied +
-            selectedStudent.dataStructuresAndAlgorithmsAttConcept +
-            selectedStudent.dataStructuresAndAlgorithmsAttApplied +
-            selectedStudent.computerOrganizationAndArchitectureAttConcept +
-            selectedStudent.DBMSAttConcept +
-            selectedStudent.DBMSAttApplied +
-            selectedStudent.computerNetworksAttConcept +
-            selectedStudent.computerNetworksAttApplied +
-            selectedStudent.operatingSystemAttConcept +
-            selectedStudent.operatingSystemAttApplied +
-            selectedStudent.webDevelopmentAttApplied
-        ) / 12
+        ((selectedStudent.spoken_english_rating + selectedStudent.written_communication_rating) / 2) * 20,
+        selectedStudent.problem_solving_rating * 20,
+        selectedStudent.familiar_tools ? 70 : 40,
+        parseFloat(selectedStudent.attendance_percentage),
+        selectedStudent.has_resume.toLowerCase() === "yes" ? 100 : 0,
+        selectedStudent.has_online_portfolio.toLowerCase() === "yes" ? 100 : 0,
+        (selectedStudent.has_project.toLowerCase() === "yes" ? 50 : 0) + (selectedStudent.has_certification.toLowerCase() === "yes" ? 50 : 0)
     ];
 
     Plotly.newPlot("skillRadar", [{
         type: 'scatterpolar',
         r: skillValues,
-        theta: ['Programming', 'Tech Knowledge', 'Applied Skills', 'Problem Solving', 'English', 'Soft Skills', 'Attendance'],
+        theta: ['Communication', 'Problem Solving', 'Technical Skills', 'Attendance', 'Resume', 'Portfolio', 'Proactivity'],
         fill: 'toself',
         line: { color: '#00acc1' }
     }], { polar: { radialaxis: { visible: true, range: [0, 100] } }, showlegend: false });
 
     const badgeDiv = document.getElementById("badges");
     badgeDiv.innerHTML = "";
-    ['Programming', 'Tech Knowledge', 'Applied Skills', 'Problem Solving', 'English', 'Soft Skills', 'Attendance'].forEach((label, i) => {
+    ['Communication', 'Problem Solving', 'Technical Skills', 'Attendance', 'Resume', 'Portfolio', 'Proactivity'].forEach((label, i) => {
         if (skillValues[i] >= 75) badgeDiv.innerHTML += `<span class='badge'>${label}</span>`;
         if (skillValues[i] < 50) badgeDiv.innerHTML += `<span class='badge weak'>${label}</span>`;
     });
@@ -312,12 +262,32 @@ function loadProfile(studentId) {
     progressDiv.innerHTML = "";
     skillValues.forEach((val, i) => {
         progressDiv.innerHTML += `
-            <p>${['Programming', 'Tech Knowledge', 'Applied Skills', 'Problem Solving', 'English', 'Soft Skills', 'Attendance'][i]} <span>${Math.round(val)}%</span></p>
+            <p>${['Communication', 'Problem Solving', 'Technical Skills', 'Attendance', 'Resume', 'Portfolio', 'Proactivity'][i]} <span>${Math.round(val)}%</span></p>
             <div class='progress-container'>
                 <div class='progress-bar' style='width:${val}%;'></div>
             </div>
         `;
     });
+
+    const profileDiv = document.getElementById("profileDetails");
+    profileDiv.innerHTML = `
+        <p><strong>Resume:</strong> ${selectedStudent.has_resume.toLowerCase() === "yes" ? `<a href="${selectedStudent.resume_link}" target="_blank">View Resume</a>` : "Not Uploaded"}</p>
+        <p><strong>Portfolio:</strong> ${selectedStudent.has_online_portfolio.toLowerCase() === "yes" ? `<a href="${selectedStudent.portfolio_link}" target="_blank">View Portfolio</a>` : "Not Uploaded"}</p>
+    `;
+
+    const suggestionDiv = document.getElementById("personalSuggestions");
+    let suggestions = [];
+    if (skillValues[0] < 50) suggestions.push("Improve spoken and written communication skills.");
+    if (skillValues[1] < 50) suggestions.push("Practice problem-solving regularly.");
+    if (skillValues[2] < 50) suggestions.push("Gain more technical skills or tools.");
+    if (skillValues[3] < 75) suggestions.push("Improve attendance to show commitment.");
+    if (skillValues[4] < 100) suggestions.push("Create and upload a professional resume.");
+    if (skillValues[5] < 100) suggestions.push("Create and share an online portfolio.");
+    if (skillValues[6] < 100) suggestions.push("Work on projects and earn certifications to show initiative.");
+
+    suggestionDiv.innerHTML = suggestions.length > 0
+        ? `<ul>${suggestions.map(s => `<li>${s}</li>`).join('')}</ul>`
+        : "<p>Great job! Keep maintaining your progress.</p>";
 }
 
 function showTab(tab) {
